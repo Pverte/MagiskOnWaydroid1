@@ -127,45 +127,33 @@ jobs:
           import requests
           from bs4 import BeautifulSoup
           import re
-          import zipfile
-          import os
           import urllib.request
-
+          import os
+      
           arch = "${{ matrix.arch }}"
-
-          #release_type_map = {"retail": "Retail", "release preview": "RP", "insider slow": "WIS", "insider fast": "WIF"}
-          #release_type_map = "WIS"
-          #release_type = release_type_map["${{ matrix.release_type }}"] if "${{ matrix.release_type }}" != "" else "Retail"	
           release_type = "WIS"
-          res = requests.post("https://store.rg-adguard.net/api/GetFiles", f"type=CategoryId&url=858014f3-3934-4abe-8078-4aa193e74ca8&ring={release_type}&lang=en-US", headers={	
-              "content-type": "application/x-www-form-urlencoded"	
-          }, verify=False) # source site has expired cert
-          
+          res = requests.post("https://store.rg-adguard.net/api/GetFiles", f"type=CategoryId&url=858014f3-3934-4abe-8078-4aa193e74ca8&ring={release_type}&lang=en-US", headers={
+              "content-type": "application/x-www-form-urlencoded"
+          }, verify=False)  # source site has expired cert
+      
           html = BeautifulSoup(res.content, "lxml")
-
-          a = html.find("a", string=re.compile(f"Microsoft\.UI\.Xaml\..*_{arch}_.*\.appx"))
-          link = a["href"]
-          print(f"downloading link: {link}", flush=True)
-          out_file = "xaml.appx"
-          if not os.path.isfile(out_file):
-              urllib.request.urlretrieve(link, out_file)
-
-          a = html.find("a", string=re.compile(f"Microsoft\.VCLibs\..*_{arch}_.*\.appx"))
-          link = a["href"]
-          print(f"downloading link: {link}", flush=True)
-          out_file = "vclibs.appx"
-          if not os.path.isfile(out_file):
-              urllib.request.urlretrieve(link, out_file)
-
-          a = html.find("a", string=re.compile("MicrosoftCorporationII\.WindowsSubsystemForAndroid_.*\.msixbundle"))
-          link = a["href"]
-          print(f"downloading link: {link}", flush=True)
-          out_file = "wsa.zip"
-          if not os.path.isfile(out_file):
-              urllib.request.urlretrieve(link, out_file)
-
+      
+          def download_file(html, regex_pattern, output_file):
+              a = html.find("a", string=re.compile(regex_pattern))
+              if a is not None:
+                  link = a["href"]
+                  print(f"downloading link: {link}", flush=True)
+                  if not os.path.isfile(output_file):
+                      urllib.request.urlretrieve(link, output_file)
+              else:
+                  print(f"Failed to find link for pattern: {regex_pattern}", flush=True)
+      
+          download_file(html, f"Microsoft\\.UI\\.Xaml\\..*_{arch}_.*\\.appx", "xaml.appx")
+          download_file(html, f"Microsoft\\.VCLibs\\..*_{arch}_.*\\.appx", "vclibs.appx")
+          download_file(html, "MicrosoftCorporationII\\.WindowsSubsystemForAndroid_.*\\.msixbundle", "wsa.zip")
+      
           zip_name = ""
-          with zipfile.ZipFile(out_file) as zip:
+          with zipfile.ZipFile("wsa.zip") as zip:
               for f in zip.filelist:
                   if arch in f.filename.lower():
                       zip_name = f.filename
@@ -192,12 +180,12 @@ jobs:
                               elif g.filename == 'AppxManifest.xml':
                                   g.filename = f'{name}.xml'
                                   l.extract(g, 'xml')
-
+      
           with zipfile.ZipFile(zip_name) as zip:
               if not os.path.isdir(arch):
                   print(f"unzipping from {zip_name}", flush=True)
                   zip.extractall(arch)
-
+      
           print("done", flush=True)
       - name: Download Magisk
         shell: python
